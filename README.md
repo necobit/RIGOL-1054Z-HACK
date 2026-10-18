@@ -148,7 +148,7 @@ with DS1000Z("169.254.51.130") as s:
 
 ## LLM から使う（MCP）
 
-このリポジトリでは `.mcp.json` に `rigol-scope` サーバーを登録済みです（`.venv` を作成したうえで）、Claude Code をこのディレクトリで起動すると、そのまま使えます。他のクライアントでは `rigol-ds mcp`（stdio）を登録してください。
+このリポジトリでは `.mcp.json` に `rigol-scope` サーバーを登録済みです。`.venv` を作成したうえで Claude Code をこのディレクトリで起動すると、そのまま使えます。他のクライアントでは `rigol-ds mcp`（stdio）を登録してください。
 
 Claude Desktop の設定例:
 
