@@ -140,16 +140,30 @@ class Lab:
             return self._scope
 
     def connect(self, host: str | None = None) -> dict:
+        """Connect to ``host`` (or $RIGOL_HOST).  If that address does not
+        answer - e.g. the scope moved to another network - fall back to
+        auto-discovery instead of failing."""
         with self._lock:
-            host = host or self._host
-            if not host:
-                found = discover()
-                if not found:
-                    raise RuntimeError("no RIGOL scope found; set RIGOL_HOST or pass host")
-                host = found[0]["host"]
             if self._scope is not None:
                 self._scope.close()
-            self._scope = DS1000Z(host).connect()
+                self._scope = None
+            host = host or self._host
+            scope = None
+            if host:
+                try:
+                    scope = DS1000Z(host, timeout=3).connect()
+                    scope.idn()
+                except OSError:
+                    scope = None
+            if scope is None:
+                found = discover()
+                if not found:
+                    raise RuntimeError(f"no RIGOL scope found (tried {host or 'nothing'} and auto-discovery); "
+                                       "set RIGOL_HOST or pass host")
+                host = found[0]["host"]
+                scope = DS1000Z(host).connect()
+            scope.t.timeout = 5.0
+            self._scope = scope
             self._host = host
             return {"host": host, **self._scope.idn()}
 

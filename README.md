@@ -178,6 +178,22 @@ Claude Desktop の設定例:
 
 レポートは `rigol_data/reports/<日時>_<タイトル>/` に出力されます。画像を埋め込んだ自己完結の `report.html` と、`report.md` + PNG です。ツールの説明には上の実測タイミングを書いてあり、LLM が速い手段を自分で選べるようにしています。
 
+## Mac 全体で使えるようにする（どのディレクトリの Claude からでも）
+
+```sh
+# 1. CLI と MCP サーバーを ~/.local/bin に入れる（editable なので、このリポジトリの変更が即反映される）
+uv tool install --python 3.12 --editable "/path/to/RIGOL-1054Z-HACK[all]"
+
+# 2. Claude Code に、ユーザー全体のスコープで登録する
+claude mcp add --scope user rigol-scope \
+  -e RIGOL_HOST=<オシロの IP> -e RIGOL_DATA_DIR="$HOME/Documents/rigol_data" \
+  -- "$HOME/.local/bin/rigol-ds" mcp
+```
+
+- **Claude Desktop**: `~/Library/Application Support/Claude/claude_desktop_config.json` の `mcpServers` に、同じ command / args / env を追加して、アプリを再起動します。
+- **スキル（任意）**: `~/.claude/skills/rigol-scope/SKILL.md` に接続情報・API 早見表・注意点を書いておきます。そうすると、Claude Code が独自の解析スクリプトを書くときにも、このライブラリを正しく使えます。スクリプトは `~/.local/share/uv/tools/rigol-ds1000z/bin/python` で実行します。
+- **IP がずれた場合**: `RIGOL_HOST` のアドレスが応答しないと、自動検出に切り替わります。
+
 ## サンプル: プローブ補正の評価
 
 `examples/probe_evaluation/` に、多スケール計測とプローブ補正評価を再現するスクリプトがあります。CH1 にテスト信号（プローブ補正端子など）を入れて実行してください。
