@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>rigol-ds1000z</title>
+<meta name="description" content="RIGOL DS1000Z を LAN から高速に制御・計測する Python ライブラリ / REST・WebSocket API / LLM 向け MCP サーバー">
+<style>
+:root { --bg:#fafaf8; --panel:#fff; --fg:#1b1c1e; --muted:#62646a; --line:#e3e3df; --accent:#b08700; --code:#f2f2ee; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#131416; --panel:#1b1c1f; --fg:#e8e8ea;
+  --muted:#9a9ca2; --line:#2c2d32; --accent:#f2c200; --code:#23242a; } }
+:root[data-theme="dark"] { --bg:#131416; --panel:#1b1c1f; --fg:#e8e8ea; --muted:#9a9ca2; --line:#2c2d32; --accent:#f2c200; --code:#23242a; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.7 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif; }
+main { max-width:880px; margin:0 auto; padding:48px 16px 80px; }
+h1 { font-size:34px; line-height:1.2; margin:0 0 8px; letter-spacing:-0.01em; }
+.lead { color:var(--muted); font-size:17px; margin:0 0 24px; }
+h2 { font-size:20px; margin:48px 0 12px; }
+a { color:var(--accent); }
+.links { display:flex; flex-wrap:wrap; gap:10px; margin:0 0 8px; }
+.btn { display:inline-block; padding:8px 16px; border:1px solid var(--line); border-radius:8px; background:var(--panel);
+  color:var(--fg); text-decoration:none; font-weight:600; }
+.btn.primary { background:var(--fg); color:var(--bg); border-color:var(--fg); }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; }
+.card h3 { margin:0 0 4px; font-size:16px; }
+.card p { margin:0; color:var(--muted); font-size:14px; }
+table { border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums; font-size:15px; }
+th, td { padding:8px 10px; border-bottom:1px solid var(--line); text-align:left; }
+td:last-child, th:last-child { text-align:right; white-space:nowrap; }
+th { color:var(--muted); font-weight:500; }
+.tablewrap { overflow-x:auto; }
+.sample { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.2fr); gap:20px; align-items:center;
+  background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; }
+.sample img { width:100%; border-radius:6px; border:1px solid var(--line); background:#fff; }
+.sample h3 { margin:0 0 6px; }
+.sample p { margin:0 0 12px; color:var(--muted); font-size:15px; }
+@media (max-width:640px) { .sample { grid-template-columns:1fr; } h1 { font-size:28px; } }
+pre { background:var(--code); border-radius:8px; padding:12px 14px; overflow-x:auto; font-size:14px; line-height:1.5; }
+code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+footer { margin-top:56px; color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>rigol-ds1000z</h1>
+  <p class="lead">RIGOL DS1000Z シリーズ（DS1054Z / DS1104Z など）を LAN から高速に制御・計測する Python ライブラリです。REST・WebSocket API と、LLM が自然言語の指示で計測からレポート作成まで行える MCP サーバーも含みます。</p>
+  <div class="links">
+    <a class="btn primary" href="samples/probe-evaluation/">サンプルレポートを見る</a>
+    <a class="btn" href="https://github.com/necobit/RIGOL-1054Z-HACK">GitHub</a>
+  </div>
+
+  <h2>できること</h2>
+  <div class="grid">
+    <div class="card"><h3>Python ライブラリ</h3><p>生 SCPI ソケットで制御します。VISA や公式 SDK は不要です。実機で調べた癖に合わせ、冗長なコマンドを送らないようにしています。</p></div>
+    <div class="card"><h3>REST / WebSocket</h3><p>FastAPI で設定変更・波形取得・スクリーンショットができます。新しいフレームをブラウザのライブビューアへ push します。</p></div>
+    <div class="card"><h3>LLM 連携（MCP）</h3><p>「これを測ってレポートにして」といった指示で、設定・取得・解析・HTML レポート作成まで LLM が実行します。</p></div>
+  </div>
+
+  <h2>サンプル: プローブ補正の評価</h2>
+  <div class="sample">
+    <a href="samples/probe-evaluation/"><img src="samples/probe-evaluation/fig5.png" alt="平坦部の偏差グラフ"></a>
+    <div>
+      <h3>CH1 テスト信号の多スケール計測とプローブ補正評価</h3>
+      <p>1 kHz の方形波を、垂直 4 段階・時間軸 9 条件で取り込みました。平坦部を 0.1 V/div まで拡大して 16 回平均し、補正状態を定量的に判定しています。結果は傾き +0.48 % / +0.41 % で、ごく軽い過補償寄りの「良好」でした。</p>
+      <a class="btn" href="samples/probe-evaluation/">レポートを開く</a>
+    </div>
+  </div>
+
+  <h2>実測パフォーマンス</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>操作（DS1104Z、USB-LAN 100 Mbps 直結）</th><th>実測</th></tr></thead>
+    <tbody>
+      <tr><td>1ch の画面波形（1200 点）</td><td>3.2 ms（約 300 回/s）</td></tr>
+      <tr><td>1ch の新しいフレーム（本体の画面更新が上限）</td><td>約 12 回/s</td></tr>
+      <tr><td>4ch を同じ瞬間に揃えて取得</td><td>約 280 ms</td></tr>
+      <tr><td>メモリ全体の 24M 点</td><td>16.6 s</td></tr>
+      <tr><td>本体の自動測定（キャッシュされている 5 項目以内）</td><td>約 3 ms</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>使い方</h2>
+<pre><code>uv venv --python 3.12 .venv
+uv pip install --python .venv/bin/python -e ".[all]"
+.venv/bin/rigol-ds discover          # LAN 上のオシロを探す
+.venv/bin/rigol-ds serve             # REST API + ライブビューア
+.venv/bin/rigol-ds mcp               # LLM 用 MCP サーバー（stdio）</code></pre>
+
+  <footer>サンプルデータ: RIGOL DS1104Z（FW 00.04.04.SP3）で取得</footer>
+</main>
+</body>
+</html>

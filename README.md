@@ -5,6 +5,8 @@ RIGOL DS1000Z シリーズ（DS1054Z / DS1074Z / DS1104Z など）を LAN から
 - VISA や公式 SDK は使いません。TCP 5555 番ポートに生の SCPI を送ります。
 - 実機（DS1104Z、FW 00.04.04.SP3、USB-LAN 100Mbps 直結）で計測した癖を設計に反映しています。
 
+- **サンプル**: [プローブ補正の評価レポート](https://necobit.github.io/RIGOL-1054Z-HACK/samples/probe-evaluation/)（GitHub Pages、[トップ](https://necobit.github.io/RIGOL-1054Z-HACK/)）
+
 ## 構成
 
 ```mermaid
@@ -175,6 +177,17 @@ Claude Desktop の設定例:
 | その他 | `scpi`（任意の SCPI を送るための逃げ道） |
 
 レポートは `rigol_data/reports/<日時>_<タイトル>/` に出力されます。画像を埋め込んだ自己完結の `report.html` と、`report.md` + PNG です。ツールの説明には上の実測タイミングを書いてあり、LLM が速い手段を自分で選べるようにしています。
+
+## サンプル: プローブ補正の評価
+
+`examples/probe_evaluation/` に、多スケール計測とプローブ補正評価を再現するスクリプトがあります。CH1 にテスト信号（プローブ補正端子など）を入れて実行してください。
+
+```sh
+.venv/bin/python examples/probe_evaluation/acquire.py --host 169.254.51.130   # 取得（約 1 分。終了後に設定を元に戻す）
+.venv/bin/python examples/probe_evaluation/make_report.py                     # 解析してレポートを生成
+```
+
+生成例は [GitHub Pages](https://necobit.github.io/RIGOL-1054Z-HACK/samples/probe-evaluation/) で見られます（ソースは `docs/`）。
 
 ## テスト
 
