@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DS1000Z Live</title>
+<style>
+:root { --bg:#f6f6f4; --panel:#fff; --fg:#1b1c1e; --muted:#6b6d72; --line:#e2e2de; --grid:#e9e9e5;
+        --c1:#c99a00; --c2:#0096b4; --c3:#c2185b; --c4:#2a55d6; --accent:#1b1c1e; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#121315; --panel:#1a1b1e; --fg:#e7e7e9;
+  --muted:#8d8f95; --line:#2b2c31; --grid:#25262a; --c1:#f2c200; --c2:#25c9e8; --c3:#ff4f9a; --c4:#6f8fff; --accent:#e7e7e9; } }
+:root[data-theme="dark"] { --bg:#121315; --panel:#1a1b1e; --fg:#e7e7e9; --muted:#8d8f95; --line:#2b2c31; --grid:#25262a;
+  --c1:#f2c200; --c2:#25c9e8; --c3:#ff4f9a; --c4:#6f8fff; --accent:#e7e7e9; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif; }
+main { max-width:1100px; margin:0 auto; padding:16px; }
+header { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 16px; margin-bottom:12px; }
+h1 { font-size:18px; margin:0; }
+#idn, #stats { color:var(--muted); font-variant-numeric:tabular-nums; }
+#stats { margin-left:auto; }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; }
+#plot { width:100%; height:min(56vh,520px); display:block; }
+.bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:12px 0; }
+button, label.ch { border:1px solid var(--line); background:var(--panel); color:var(--fg); border-radius:8px;
+  padding:6px 12px; font:inherit; cursor:pointer; user-select:none; }
+button:hover { border-color:var(--muted); }
+label.ch { display:inline-flex; gap:6px; align-items:center; }
+label.ch input { accent-color:var(--fg); }
+.sw { width:10px; height:10px; border-radius:2px; display:inline-block; }
+table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+th, td { padding:6px 10px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap; }
+th:first-child, td:first-child { text-align:left; }
+th { color:var(--muted); font-weight:500; }
+.tablewrap { overflow-x:auto; }
+#err { color:#d33; min-height:1.4em; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>DS1000Z Live</h1><span id="idn">connecting…</span><span id="stats"></span>
+  </header>
+  <div class="panel"><canvas id="plot"></canvas></div>
+  <div class="bar" id="chans"></div>
+  <div class="bar">
+    <button data-act="run">Run</button><button data-act="stop">Stop</button>
+    <button data-act="single">Single</button><button data-act="force">Force</button>
+    <button data-act="autoscale">Auto</button>
+    <button id="shot">Screenshot</button>
+  </div>
+  <div class="panel tablewrap">
+    <table><thead><tr><th>ch</th><th>Vpp</th><th>Vmax</th><th>Vmin</th><th>Vavg</th><th>Vrms</th><th>freq</th><th>fps</th></tr></thead>
+    <tbody id="meas"></tbody></table>
+  </div>
+  <p id="err"></p>
+</main>
+<script>
+const COLORS = () => { const cs = getComputedStyle(document.documentElement);
+  return [1,2,3,4].map(i => cs.getPropertyValue(`--c${i}`).trim()); };
+const frames = {}, counts = {1:0,2:0,3:0,4:0}, fps = {};
+let selected = new Set([1,2,3,4]), ws = null, status = null;
+
+const eng = (v, u) => {
+  if (v == null || !isFinite(v)) return "—";
+  const a = Math.abs(v); const p = [[1e9,"G"],[1e6,"M"],[1e3,"k"],[1,""],[1e-3,"m"],[1e-6,"µ"],[1e-9,"n"]];
+  for (const [s, n] of p) if (a >= s) return +(v / s).toPrecision(4) + " " + n + u;
+  return +v.toPrecision(3) + " " + u;
+};
+
+function analyze(v, dt) {
+  let mx = -Infinity, mn = Infinity, s = 0, s2 = 0;
+  for (const x of v) { if (x > mx) mx = x; if (x < mn) mn = x; s += x; s2 += x * x; }
+  const n = v.length, vpp = mx - mn, mid = (mx + mn) / 2, hi = mid + .1 * vpp, lo = mid - .1 * vpp;
+  let st = -1, first = -1, last = -1, edges = 0;
+  for (let i = 0; i < n; i++) {
+    const x = v[i];
+    if (x > hi) { if (st === 0) { if (first < 0) first = i; last = i; edges++; } st = 1; }
+    else if (x < lo) st = 0;
+  }
+  const freq = edges >= 2 && vpp > 0 ? (edges - 1) / ((last - first) * dt) : null;
+  return { vpp, vmax: mx, vmin: mn, vavg: s / n, vrms: Math.sqrt(s2 / n), freq };
+}
+
+function connect() {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${proto}://${location.host}/ws/stream?channels=${[...selected].join(",") || 1}`);
+  ws.binaryType = "arraybuffer";
+  ws.onmessage = ev => {
+    const dv = new DataView(ev.data), hl = dv.getUint32(0, true);
+    const h = JSON.parse(new TextDecoder().decode(new Uint8Array(ev.data, 4, hl)));
+    const raw = new Uint8Array(ev.data, 4 + hl), v = new Float32Array(raw.length);
+    for (let i = 0; i < raw.length; i++) v[i] = (raw[i] - h.yoffset) * h.yinc;
+    frames[h.ch] = { ...h, v, a: analyze(v, h.dx) }; counts[h.ch]++;
+  };
+  ws.onclose = () => setTimeout(connect, 1000);
+}
+
+function draw() {
+  const cv = document.getElementById("plot"), r = cv.getBoundingClientRect(), dpr = devicePixelRatio || 1;
+  if (cv.width !== Math.round(r.width * dpr)) { cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); }
+  const g = cv.getContext("2d"), W = cv.width, H = cv.height, cs = getComputedStyle(document.documentElement);
+  g.clearRect(0, 0, W, H);
+  g.strokeStyle = cs.getPropertyValue("--grid"); g.lineWidth = 1;
+  for (let i = 1; i < 12; i++) { const x = Math.round(i * W / 12) + .5; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); }
+  for (let i = 1; i < 8; i++) { const y = Math.round(i * H / 8) + .5; g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
+  const col = COLORS();
+  for (const ch of [1,2,3,4]) {
+    const f = frames[ch]; if (!f || !selected.has(ch)) continue;
+    // Plot in screen divisions: raw codes map onto 8 vertical divisions like the scope does.
+    const st = status && status.channels[ch], div = st ? st.scale : (f.yinc * 25), off = st ? st.offset : 0;
+    g.strokeStyle = col[ch - 1]; g.lineWidth = 1.5 * dpr; g.beginPath();
+    for (let i = 0; i < f.v.length; i++) {
+      const x = i / (f.v.length - 1) * W, y = H / 2 - (f.v[i] + off) / div * (H / 8);
+      i ? g.lineTo(x, y) : g.moveTo(x, y);
+    }
+    g.stroke();
+  }
+  requestAnimationFrame(draw);
+}
+
+function table() {
+  const rows = [];
+  for (const ch of [1,2,3,4]) {
+    const f = frames[ch]; if (!f || !selected.has(ch)) continue;
+    const a = f.a;
+    rows.push(`<tr><td><span class="sw" style="background:var(--c${ch})"></span> CH${ch}</td><td>${eng(a.vpp,"V")}</td>
+      <td>${eng(a.vmax,"V")}</td><td>${eng(a.vmin,"V")}</td><td>${eng(a.vavg,"V")}</td><td>${eng(a.vrms,"V")}</td>
+      <td>${eng(a.freq,"Hz")}</td><td>${(fps[ch] || 0).toFixed(1)}</td></tr>`);
+  }
+  document.getElementById("meas").innerHTML = rows.join("");
+}
+
+setInterval(() => { for (const c of [1,2,3,4]) { fps[c] = counts[c]; counts[c] = 0; } table(); }, 1000);
+
+async function api(path, opts) {
+  const r = await fetch(path, opts); const j = await r.json().catch(() => ({}));
+  document.getElementById("err").textContent = r.ok ? "" : (j.detail || r.statusText);
+  return j;
+}
+async function refreshStatus() {
+  status = await api("/api/status");
+  if (status && status.channels) {
+    document.getElementById("stats").textContent =
+      `${status.trigger_status} · ${eng(status.timebase_scale, "s/div")} · ${eng(status.sample_rate, "Sa/s")} · mem ${status.memory_depth}`;
+  }
+}
+
+function buildChannels() {
+  const el = document.getElementById("chans");
+  el.innerHTML = [1,2,3,4].map(c => `<label class="ch"><input type="checkbox" value="${c}" ${selected.has(c) ? "checked" : ""}>
+    <span class="sw" style="background:var(--c${c})"></span>CH${c}</label>`).join("");
+  el.onchange = e => {
+    const c = +e.target.value; e.target.checked ? selected.add(c) : selected.delete(c);
+    if (ws) { ws.onclose = null; ws.close(); } connect();
+  };
+}
+
+document.querySelectorAll("button[data-act]").forEach(b => b.onclick = async () => {
+  await api(`/api/control/${b.dataset.act}`, { method: "POST" }); refreshStatus();
+});
+document.getElementById("shot").onclick = () => window.open("/api/screenshot", "_blank");
+
+(async () => {
+  const i = await api("/api/info");
+  document.getElementById("idn").textContent = i.model ? `${i.model} · ${i.host} · FW ${i.firmware}` : "not connected";
+  await refreshStatus();
+  if (status && status.channels) selected = new Set([1,2,3,4].filter(c => status.channels[c].display));
+  buildChannels(); connect(); requestAnimationFrame(draw);
+  setInterval(refreshStatus, 2000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+[project]
+name = "rigol-ds1000z"
+version = "0.1.0"
+description = "Fast LAN (raw SCPI socket) control and REST/WebSocket API for RIGOL DS1000Z oscilloscopes"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24"]
+
+[project.optional-dependencies]
+server = ["fastapi>=0.110", "uvicorn[standard]>=0.29"]
+mcp = ["mcp>=1.2", "matplotlib>=3.7"]
+all = ["rigol-ds1000z[server,mcp]"]
+dev = ["rigol-ds1000z[all]", "pytest>=8", "httpx>=0.27"]
+
+[project.scripts]
+rigol-ds = "rigol_ds1000z.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rigol_ds1000z"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
